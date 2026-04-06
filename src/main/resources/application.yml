@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: repair-backend
+  profiles:
+    active: dev
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+security:
+  jwt:
+    secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    expire-seconds: 86400
+
+llm:
+  provider: ZHIPU_GLM

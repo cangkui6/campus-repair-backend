@@ -1,0 +1,28 @@
+package com.graduation.repair.service.support;
+
+import com.graduation.repair.domain.entity.LlmParseReviewQueue;
+import com.graduation.repair.repository.LlmParseReviewQueueRepository;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+
+@Component
+public class ParseFallbackHandler {
+
+    private final LlmParseReviewQueueRepository reviewQueueRepository;
+
+    public ParseFallbackHandler(LlmParseReviewQueueRepository reviewQueueRepository) {
+        this.reviewQueueRepository = reviewQueueRepository;
+    }
+
+    public void enqueue(Long ticketId, Long operatorId, String rawText, String reason) {
+        LlmParseReviewQueue item = new LlmParseReviewQueue();
+        item.setTicketId(ticketId);
+        item.setOperatorId(operatorId);
+        item.setRawText(rawText == null ? "" : rawText);
+        item.setReason(reason);
+        item.setQueueStatus("PENDING_MANUAL_REVIEW");
+        item.setCreatedAt(LocalDateTime.now());
+        reviewQueueRepository.save(item);
+    }
+}

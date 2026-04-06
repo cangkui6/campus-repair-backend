@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/campus_repair?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: "2254600749@qq.com"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/schema.sql
+      data-locations: classpath:sql/data.sql
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+llm:
+  base-url: https://open.bigmodel.cn/api/paas/v4
+  chat-path: /chat/completions
+  model: glm-4-air-250414
+  prompt:
+    parse-version: parse-v1
+  api-key: 78c84f14f6a049cc989c64952d56da16.ReovTQVYUkOxse2i
+  timeout-seconds: 30
