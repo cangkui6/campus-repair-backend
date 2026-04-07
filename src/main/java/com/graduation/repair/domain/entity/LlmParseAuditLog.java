@@ -23,6 +23,9 @@ public class LlmParseAuditLog {
     @Column(name = "prompt_version", nullable = false, length = 50)
     private String promptVersion;
 
+    @Column(name = "provider_name", nullable = false, length = 50)
+    private String providerName;
+
     @Column(name = "model_name", nullable = false, length = 100)
     private String modelName;
 

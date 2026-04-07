@@ -5,26 +5,28 @@ import org.springframework.stereotype.Component;
 @Component
 public class ParseResultValidator {
 
-    public boolean isValid(ParsedTicketData data) {
+    public void validateOrThrow(ParsedTicketData data) {
         if (data == null) {
-            return false;
+            throw ParseFailureReason.EMPTY_FAULT.toException();
         }
         String fault = data.getFaultPhenomenon();
         if (fault == null || fault.isBlank()) {
-            return false;
+            throw ParseFailureReason.EMPTY_FAULT.toException();
         }
 
         String trimmedFault = fault.trim();
         if (trimmedFault.length() < 4) {
-            return false;
+            throw ParseFailureReason.MEANINGLESS_TEXT.toException();
         }
         if (isRepeatingSingleChar(trimmedFault)) {
-            return false;
+            throw ParseFailureReason.MEANINGLESS_TEXT.toException();
         }
         if ((data.getConfidence() == null ? 0.0 : data.getConfidence()) < 0.3) {
-            return false;
+            throw ParseFailureReason.LOW_CONFIDENCE.toException();
         }
-        return !"OTHER".equals(data.getCategory()) || !"未知位置".equals(data.getLocation());
+        if ("OTHER".equals(data.getCategory()) && "未知位置".equals(data.getLocation())) {
+            throw ParseFailureReason.UNKNOWN_LOCATION_AND_OTHER_CATEGORY.toException();
+        }
     }
 
     private boolean isRepeatingSingleChar(String text) {

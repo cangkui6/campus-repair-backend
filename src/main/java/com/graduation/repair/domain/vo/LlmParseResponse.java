@@ -18,6 +18,7 @@ public class LlmParseResponse {
     private Double confidence;
     private String parseStatus;
     private String promptVersion;
+    private String providerName;
     private String modelName;
     private Long latencyMs;
     private Boolean fallbackQueued;

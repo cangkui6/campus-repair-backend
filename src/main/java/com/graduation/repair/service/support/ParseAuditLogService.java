@@ -21,6 +21,7 @@ public class ParseAuditLogService {
     public void save(Long ticketId,
                      Long operatorId,
                      String promptVersion,
+                     String providerName,
                      String modelName,
                      Long latencyMs,
                      String rawResponse,
@@ -30,6 +31,7 @@ public class ParseAuditLogService {
         log.setTicketId(ticketId);
         log.setOperatorId(operatorId);
         log.setPromptVersion(promptVersion);
+        log.setProviderName(providerName);
         log.setModelName(modelName);
         log.setLatencyMs(latencyMs == null ? 0L : latencyMs);
         log.setRawResponse(rawResponse);

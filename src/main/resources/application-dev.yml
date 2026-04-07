@@ -21,7 +21,9 @@ llm:
   base-url: https://open.bigmodel.cn/api/paas/v4
   chat-path: /chat/completions
   model: glm-4-air-250414
+  enabled-client: zhipu
   prompt:
     parse-version: parse-v1
+    classify-version: classify-v1
   api-key: 78c84f14f6a049cc989c64952d56da16.ReovTQVYUkOxse2i
   timeout-seconds: 30

@@ -46,6 +46,11 @@ public class ZhipuLlmClient implements LlmClientAdapter {
     }
 
     @Override
+    public String clientKey() {
+        return "zhipu";
+    }
+
+    @Override
     public LlmClientResponse chatJson(String systemPrompt, String userPrompt) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

@@ -18,12 +18,12 @@ import com.graduation.repair.service.LlmService;
 import com.graduation.repair.service.support.LlmClientAdapter;
 import com.graduation.repair.service.support.LlmClientResponse;
 import com.graduation.repair.service.support.ParseAuditLogService;
+import com.graduation.repair.service.support.ParseFailureReason;
 import com.graduation.repair.service.support.ParseFallbackHandler;
 import com.graduation.repair.service.support.ParseResultValidator;
 import com.graduation.repair.service.support.ParsedTicketData;
 import com.graduation.repair.service.support.PromptManager;
 import com.graduation.repair.service.support.TicketStateMachine;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,9 +49,6 @@ public class LlmServiceImpl implements LlmService {
     private final ParseResultValidator parseResultValidator;
     private final ParseFallbackHandler parseFallbackHandler;
     private final ParseAuditLogService parseAuditLogService;
-
-    @Value("${llm.provider:ZHIPU_GLM}")
-    private String llmProvider;
 
     public LlmServiceImpl(RepairTicketRepository repairTicketRepository,
                           FaultCategoryRepository faultCategoryRepository,
@@ -103,28 +100,21 @@ public class LlmServiceImpl implements LlmService {
         try {
             normalized = normalize(parseRawJson(clientResponse.getRawResponse()));
             normalizedJson = toJson(normalized);
+            parseResultValidator.validateOrThrow(normalized);
         } catch (BizException ex) {
+            ParseFailureReason reason = mapFailureReason(ex.getMessage());
             if (ticket != null) {
                 writeParseLog(ticket.getId(), operatorId, ticket.getStatus(), ticket.getStatus(), "LLM解析异常，已转人工确认");
             }
-            parseFallbackHandler.enqueue(request.getTicketId(), operatorId, rawText, ex.getMessage());
-            parseAuditLogService.save(request.getTicketId(), operatorId, promptVersion, llmClientAdapter.modelName(), clientResponse.getLatencyMs(), clientResponse.getRawResponse(), "FAILED_NEED_MANUAL_REVIEW", "{}");
-            throw ex;
-        }
-
-        if (!parseResultValidator.isValid(normalized)) {
-            if (ticket != null) {
-                writeParseLog(ticket.getId(), operatorId, ticket.getStatus(), ticket.getStatus(), "LLM解析失败，已转人工确认");
-            }
-            parseFallbackHandler.enqueue(request.getTicketId(), operatorId, rawText, "解析结果校验失败");
-            parseAuditLogService.save(request.getTicketId(), operatorId, promptVersion, llmClientAdapter.modelName(), clientResponse.getLatencyMs(), clientResponse.getRawResponse(), "FAILED_NEED_MANUAL_REVIEW", normalizedJson);
+            parseFallbackHandler.enqueue(request.getTicketId(), operatorId, rawText, reason);
+            parseAuditLogService.save(request.getTicketId(), operatorId, promptVersion, llmClientAdapter.providerName(), llmClientAdapter.modelName(), clientResponse.getLatencyMs(), clientResponse.getRawResponse(), "FAILED_NEED_MANUAL_REVIEW", "{}");
             throw new BizException(4199, "llm parse failed, fallback to manual review");
         }
 
         if (ticket != null) {
             String fromStatus = ticket.getStatus();
-            if (!ticketStateMachine.canTransit(fromStatus, "已解析")) {
-                throw new BizException(4001, "当前状态不允许执行解析");
+            if (!"待受理".equals(fromStatus)) {
+                throw new BizException(4001, "仅待受理工单允许执行LLM解析");
             }
             ticket.setLocationText(normalized.getLocation());
             ticket.setFaultDesc(normalized.getFaultPhenomenon());
@@ -137,11 +127,10 @@ public class LlmServiceImpl implements LlmService {
             ticket.setStatus("已解析");
             ticket.setUpdatedAt(LocalDateTime.now());
             repairTicketRepository.save(ticket);
-
             writeParseLog(ticket.getId(), operatorId, fromStatus, "已解析", "LLM解析成功");
         }
 
-        parseAuditLogService.save(request.getTicketId(), operatorId, promptVersion, llmClientAdapter.modelName(), clientResponse.getLatencyMs(), clientResponse.getRawResponse(), "SUCCESS", normalizedJson);
+        parseAuditLogService.save(request.getTicketId(), operatorId, promptVersion, llmClientAdapter.providerName(), llmClientAdapter.modelName(), clientResponse.getLatencyMs(), clientResponse.getRawResponse(), "SUCCESS", normalizedJson);
 
         return LlmParseResponse.builder()
                 .category(normalized.getCategory())
@@ -153,6 +142,7 @@ public class LlmServiceImpl implements LlmService {
                 .confidence(normalized.getConfidence())
                 .parseStatus("SUCCESS")
                 .promptVersion(promptVersion)
+                .providerName(llmClientAdapter.providerName())
                 .modelName(llmClientAdapter.modelName())
                 .latencyMs(clientResponse.getLatencyMs())
                 .fallbackQueued(false)
@@ -162,8 +152,8 @@ public class LlmServiceImpl implements LlmService {
     @Override
     public LlmClassifyResponse classify(LlmClassifyRequest request) {
         LlmClientResponse clientResponse = llmClientAdapter.chatJson(
-                promptManager.parseSystemPrompt(),
-                promptManager.parseUserPrompt(request.getRawText())
+                promptManager.classifySystemPrompt(),
+                promptManager.classifyUserPrompt(request.getRawText())
         );
         ParsedTicketData normalized = normalize(parseRawJson(clientResponse.getRawResponse()));
         return new LlmClassifyResponse(normalized.getCategory(), normalized.getConfidence() == null ? 0.9 : normalized.getConfidence());
@@ -172,7 +162,7 @@ public class LlmServiceImpl implements LlmService {
     @Override
     public LlmHealthVO health() {
         return LlmHealthVO.builder()
-                .provider(llmProvider + ":" + llmClientAdapter.modelName())
+                .provider(llmClientAdapter.providerName() + ":" + llmClientAdapter.modelName())
                 .status("UP")
                 .latencyMs(300L)
                 .build();
@@ -191,7 +181,7 @@ public class LlmServiceImpl implements LlmService {
                     .confidence(number(root, "confidence"))
                     .build();
         } catch (Exception e) {
-            throw new BizException(4106, "智谱JSON解析失败: " + e.getMessage());
+            throw ParseFailureReason.INVALID_JSON.toException();
         }
     }
 
@@ -277,6 +267,18 @@ public class LlmServiceImpl implements LlmService {
         } catch (Exception e) {
             return "{}";
         }
+    }
+
+    private ParseFailureReason mapFailureReason(String message) {
+        if (message == null) {
+            return ParseFailureReason.EMPTY_FAULT;
+        }
+        for (ParseFailureReason value : ParseFailureReason.values()) {
+            if (message.contains(value.message())) {
+                return value;
+            }
+        }
+        return ParseFailureReason.EMPTY_FAULT;
     }
 
     private Double round2(double value) {

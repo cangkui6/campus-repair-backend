@@ -23,6 +23,9 @@ public class LlmParseReviewQueue {
     @Column(name = "raw_text", nullable = false, columnDefinition = "TEXT")
     private String rawText;
 
+    @Column(name = "reason_code", nullable = false, length = 50)
+    private String reasonCode;
+
     @Column(name = "reason", nullable = false, length = 255)
     private String reason;
 

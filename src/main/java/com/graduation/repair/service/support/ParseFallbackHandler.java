@@ -18,12 +18,13 @@ public class ParseFallbackHandler {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void enqueue(Long ticketId, Long operatorId, String rawText, String reason) {
+    public void enqueue(Long ticketId, Long operatorId, String rawText, ParseFailureReason reason) {
         LlmParseReviewQueue item = new LlmParseReviewQueue();
         item.setTicketId(ticketId);
         item.setOperatorId(operatorId);
         item.setRawText(rawText == null ? "" : rawText);
-        item.setReason(reason);
+        item.setReasonCode(reason.code());
+        item.setReason(reason.message());
         item.setQueueStatus("PENDING_MANUAL_REVIEW");
         item.setCreatedAt(LocalDateTime.now());
         reviewQueueRepository.save(item);
