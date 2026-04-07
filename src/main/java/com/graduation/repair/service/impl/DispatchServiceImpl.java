@@ -17,6 +17,7 @@ import com.graduation.repair.repository.SysUserRepository;
 import com.graduation.repair.service.DispatchService;
 import com.graduation.repair.service.NotificationService;
 import com.graduation.repair.service.support.DispatchScoreEngine;
+import com.graduation.repair.service.support.DispatchWeightManager;
 import com.graduation.repair.service.support.TicketStateMachine;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,7 @@ public class DispatchServiceImpl implements DispatchService {
     private final DispatchRecordRepository dispatchRecordRepository;
     private final OperationLogRepository operationLogRepository;
     private final DispatchScoreEngine dispatchScoreEngine;
+    private final DispatchWeightManager dispatchWeightManager;
     private final TicketStateMachine ticketStateMachine;
     private final NotificationService notificationService;
     private final SysUserRepository sysUserRepository;
@@ -45,6 +47,7 @@ public class DispatchServiceImpl implements DispatchService {
                                DispatchRecordRepository dispatchRecordRepository,
                                OperationLogRepository operationLogRepository,
                                DispatchScoreEngine dispatchScoreEngine,
+                               DispatchWeightManager dispatchWeightManager,
                                TicketStateMachine ticketStateMachine,
                                NotificationService notificationService,
                                SysUserRepository sysUserRepository) {
@@ -53,6 +56,7 @@ public class DispatchServiceImpl implements DispatchService {
         this.dispatchRecordRepository = dispatchRecordRepository;
         this.operationLogRepository = operationLogRepository;
         this.dispatchScoreEngine = dispatchScoreEngine;
+        this.dispatchWeightManager = dispatchWeightManager;
         this.ticketStateMachine = ticketStateMachine;
         this.notificationService = notificationService;
         this.sysUserRepository = sysUserRepository;
@@ -118,6 +122,7 @@ public class DispatchServiceImpl implements DispatchService {
                 .scorePerf(0.0)
                 .scoreUrgency(0.0)
                 .totalScore(0.0)
+                .scoreVersion(dispatchWeightManager.activeConfig().getVersionNo())
                 .build();
 
         saveDispatchRecord(ticketId, score, "MANUAL", "ASSIGNED", request.getReason());
@@ -143,11 +148,8 @@ public class DispatchServiceImpl implements DispatchService {
         }
 
         Long oldWorkerId = ticket.getCurrentWorkerId();
-
         List<MaintenanceWorker> candidates = maintenanceWorkerRepository.findByIsAvailable(1)
-                .stream()
-                .filter(w -> !Objects.equals(w.getId(), request.getRejectingWorkerId()))
-                .toList();
+                .stream().filter(w -> !Objects.equals(w.getId(), request.getRejectingWorkerId())).toList();
 
         if (candidates.isEmpty()) {
             clearAssignmentToPendingManual(ticket, operatorId, "拒单后无候选人员，转待分配池");
@@ -194,7 +196,6 @@ public class DispatchServiceImpl implements DispatchService {
 
     private void updateTicketAssignment(RepairTicket ticket, Long workerId, String status) {
         Long oldWorkerId = ticket.getCurrentWorkerId();
-
         ticket.setCurrentWorkerId(workerId);
         ticket.setStatus(status);
         ticket.setUpdatedAt(LocalDateTime.now());
@@ -228,11 +229,9 @@ public class DispatchServiceImpl implements DispatchService {
         ticket.setStatus("已解析");
         ticket.setUpdatedAt(LocalDateTime.now());
         repairTicketRepository.save(ticket);
-
         if (oldWorkerId != null) {
             decrementWorkerLoad(oldWorkerId);
         }
-
         writeDispatchLog(ticket.getId(), operatorId, "DISPATCH", oldStatus, "已解析", detail + "（PENDING_MANUAL）");
         notifyAdminsPendingManual(ticket, detail);
     }
@@ -247,6 +246,7 @@ public class DispatchServiceImpl implements DispatchService {
         record.setScorePerf(decimal(score.getScorePerf()));
         record.setScoreUrgency(decimal(score.getScoreUrgency()));
         record.setTotalScore(decimal(score.getTotalScore()));
+        record.setScoreVersion(score.getScoreVersion());
         record.setDispatchType(type);
         record.setDispatchStatus(status);
         record.setRemark(remark);

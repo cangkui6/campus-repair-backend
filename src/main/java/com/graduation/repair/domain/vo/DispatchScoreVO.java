@@ -16,4 +16,5 @@ public class DispatchScoreVO {
     private Double scorePerf;
     private Double scoreUrgency;
     private Double totalScore;
+    private Integer scoreVersion;
 }

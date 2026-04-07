@@ -1,5 +1,6 @@
 package com.graduation.repair.service.support;
 
+import com.graduation.repair.domain.entity.DispatchWeightConfig;
 import com.graduation.repair.domain.entity.FaultCategory;
 import com.graduation.repair.domain.entity.MaintenanceWorker;
 import com.graduation.repair.domain.entity.RepairTicket;
@@ -15,19 +16,17 @@ import java.util.Locale;
 @Component
 public class DispatchScoreEngine {
 
-    private static final double W_SKILL = 0.35;
-    private static final double W_AREA = 0.20;
-    private static final double W_LOAD = 0.20;
-    private static final double W_PERF = 0.10;
-    private static final double W_URGENCY = 0.15;
-
     private final FaultCategoryRepository faultCategoryRepository;
+    private final DispatchWeightManager dispatchWeightManager;
 
-    public DispatchScoreEngine(FaultCategoryRepository faultCategoryRepository) {
+    public DispatchScoreEngine(FaultCategoryRepository faultCategoryRepository,
+                               DispatchWeightManager dispatchWeightManager) {
         this.faultCategoryRepository = faultCategoryRepository;
+        this.dispatchWeightManager = dispatchWeightManager;
     }
 
     public List<DispatchScoreVO> rank(RepairTicket ticket, List<MaintenanceWorker> workers) {
+        DispatchWeightConfig config = dispatchWeightManager.activeConfig();
         List<DispatchScoreVO> scores = new ArrayList<>();
         for (MaintenanceWorker worker : workers) {
             double skill = skillScore(ticket, worker);
@@ -35,7 +34,12 @@ public class DispatchScoreEngine {
             double load = loadScore(worker);
             double perf = perfScore(worker);
             double urgency = urgencyScore(ticket, worker, skill, area);
-            double total = round2(100 * (W_SKILL * skill + W_AREA * area + W_LOAD * load + W_PERF * perf + W_URGENCY * urgency));
+            double total = round2(100 * (
+                    config.getWeightSkill().doubleValue() * skill
+                            + config.getWeightArea().doubleValue() * area
+                            + config.getWeightLoad().doubleValue() * load
+                            + config.getWeightPerf().doubleValue() * perf
+                            + config.getWeightUrgency().doubleValue() * urgency));
 
             scores.add(DispatchScoreVO.builder()
                     .workerId(worker.getId())
@@ -45,6 +49,7 @@ public class DispatchScoreEngine {
                     .scorePerf(round2(perf * 100))
                     .scoreUrgency(round2(urgency * 100))
                     .totalScore(total)
+                    .scoreVersion(config.getVersionNo())
                     .build());
         }
 
@@ -59,7 +64,6 @@ public class DispatchScoreEngine {
         if (categoryCode.isBlank()) {
             return 0.3;
         }
-
         String skills = safe(worker.getSkillTags());
         return hasSkillTag(skills, categoryCode) ? 1.0 : 0.3;
     }

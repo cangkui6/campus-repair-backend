@@ -39,6 +39,9 @@ public class DispatchRecord {
     @Column(name = "total_score", precision = 6, scale = 2)
     private BigDecimal totalScore;
 
+    @Column(name = "score_version")
+    private Integer scoreVersion;
+
     @Column(name = "dispatch_type", nullable = false, length = 20)
     private String dispatchType;
 

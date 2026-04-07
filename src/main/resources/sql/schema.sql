@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS dispatch_record (
     score_perf DECIMAL(5,2),
     score_urgency DECIMAL(5,2),
     total_score DECIMAL(6,2),
+    score_version INT,
     dispatch_type VARCHAR(20) NOT NULL,
     dispatch_status VARCHAR(20) NOT NULL,
     remark VARCHAR(255),
@@ -108,6 +109,32 @@ CREATE TABLE IF NOT EXISTS notification_message (
     CONSTRAINT fk_message_receiver_id FOREIGN KEY (receiver_id) REFERENCES sys_user (id),
     CONSTRAINT fk_message_ticket_id FOREIGN KEY (ticket_id) REFERENCES repair_ticket (id),
     CONSTRAINT ck_message_is_read CHECK (is_read IN (0, 1))
+);
+
+CREATE TABLE IF NOT EXISTS dispatch_feedback_snapshot (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    window_start DATETIME NOT NULL,
+    window_end DATETIME NOT NULL,
+    dispatch_count INT NOT NULL,
+    reassign_rate DECIMAL(6,4) NOT NULL,
+    reject_rate DECIMAL(6,4) NOT NULL,
+    timeout_rate DECIMAL(6,4) NOT NULL,
+    avg_complete_hours DECIMAL(8,2) NOT NULL,
+    applied_version INT NOT NULL,
+    created_at DATETIME NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dispatch_weight_config (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    version_no INT NOT NULL,
+    weight_skill DECIMAL(6,4) NOT NULL,
+    weight_area DECIMAL(6,4) NOT NULL,
+    weight_load DECIMAL(6,4) NOT NULL,
+    weight_perf DECIMAL(6,4) NOT NULL,
+    weight_urgency DECIMAL(6,4) NOT NULL,
+    trigger_source VARCHAR(30) NOT NULL,
+    is_active TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS llm_parse_audit_log (

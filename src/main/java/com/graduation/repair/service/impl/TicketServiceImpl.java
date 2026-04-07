@@ -16,6 +16,7 @@ import com.graduation.repair.domain.vo.TicketStatusChangeResponse;
 import com.graduation.repair.repository.MaintenanceWorkerRepository;
 import com.graduation.repair.repository.OperationLogRepository;
 import com.graduation.repair.repository.RepairTicketRepository;
+import com.graduation.repair.service.DispatchFeedbackService;
 import com.graduation.repair.service.NotificationService;
 import com.graduation.repair.service.TicketService;
 import com.graduation.repair.service.support.TicketNoGenerator;
@@ -40,6 +41,7 @@ public class TicketServiceImpl implements TicketService {
     private final OperationLogRepository operationLogRepository;
     private final TicketNoGenerator ticketNoGenerator;
     private final TicketStateMachine ticketStateMachine;
+    private final DispatchFeedbackService dispatchFeedbackService;
     private final NotificationService notificationService;
     private final MaintenanceWorkerRepository maintenanceWorkerRepository;
 
@@ -47,12 +49,14 @@ public class TicketServiceImpl implements TicketService {
                              OperationLogRepository operationLogRepository,
                              TicketNoGenerator ticketNoGenerator,
                              TicketStateMachine ticketStateMachine,
+                             DispatchFeedbackService dispatchFeedbackService,
                              NotificationService notificationService,
                              MaintenanceWorkerRepository maintenanceWorkerRepository) {
         this.repairTicketRepository = repairTicketRepository;
         this.operationLogRepository = operationLogRepository;
         this.ticketNoGenerator = ticketNoGenerator;
         this.ticketStateMachine = ticketStateMachine;
+        this.dispatchFeedbackService = dispatchFeedbackService;
         this.notificationService = notificationService;
         this.maintenanceWorkerRepository = maintenanceWorkerRepository;
     }
@@ -175,6 +179,7 @@ public class TicketServiceImpl implements TicketService {
         ticket.setCompletedAt(LocalDateTime.now());
         ticket.setUpdatedAt(LocalDateTime.now());
         repairTicketRepository.save(ticket);
+        dispatchFeedbackService.onTicketCompleted(operatorId, ticketId);
         return response;
     }
 
