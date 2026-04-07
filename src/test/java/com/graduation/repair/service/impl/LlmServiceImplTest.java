@@ -7,8 +7,13 @@ import com.graduation.repair.domain.entity.RepairTicket;
 import com.graduation.repair.repository.FaultCategoryRepository;
 import com.graduation.repair.repository.OperationLogRepository;
 import com.graduation.repair.repository.RepairTicketRepository;
+import com.graduation.repair.service.support.LlmClientAdapter;
+import com.graduation.repair.service.support.LlmClientResponse;
+import com.graduation.repair.service.support.ParseAuditLogService;
+import com.graduation.repair.service.support.ParseFallbackHandler;
+import com.graduation.repair.service.support.ParseResultValidator;
+import com.graduation.repair.service.support.PromptManager;
 import com.graduation.repair.service.support.TicketStateMachine;
-import com.graduation.repair.service.support.ZhipuLlmClient;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,17 +32,27 @@ class LlmServiceImplTest {
         repairTicketRepository = Mockito.mock(RepairTicketRepository.class);
         ticketStateMachine = Mockito.mock(TicketStateMachine.class);
 
-        ZhipuLlmClient zhipuLlmClient = Mockito.mock(ZhipuLlmClient.class);
-        Mockito.when(zhipuLlmClient.chatJson(Mockito.anyString(), Mockito.anyString()))
-                .thenReturn("{\"category\":\"NETWORK\",\"location\":\"教学楼\",\"faultPhenomenon\":\"网络掉线\",\"urgency\":\"HIGH\",\"confidence\":0.92}");
+        LlmClientAdapter llmClientAdapter = Mockito.mock(LlmClientAdapter.class);
+        Mockito.when(llmClientAdapter.chatJson(Mockito.anyString(), Mockito.anyString()))
+                .thenReturn(new LlmClientResponse("{\"category\":\"NETWORK\",\"location\":\"教学楼\",\"faultPhenomenon\":\"网络掉线\",\"urgency\":\"HIGH\",\"confidence\":0.92}", 123L));
+        Mockito.when(llmClientAdapter.modelName()).thenReturn("mock-model");
+
+        PromptManager promptManager = Mockito.mock(PromptManager.class);
+        Mockito.when(promptManager.parsePromptVersion()).thenReturn("parse-v1");
+        Mockito.when(promptManager.parseSystemPrompt()).thenReturn("system");
+        Mockito.when(promptManager.parseUserPrompt(Mockito.anyString())).thenReturn("user");
 
         llmService = new LlmServiceImpl(
                 repairTicketRepository,
                 Mockito.mock(FaultCategoryRepository.class),
                 Mockito.mock(OperationLogRepository.class),
                 ticketStateMachine,
-                zhipuLlmClient,
-                new ObjectMapper()
+                llmClientAdapter,
+                new ObjectMapper(),
+                promptManager,
+                new ParseResultValidator(),
+                Mockito.mock(ParseFallbackHandler.class),
+                Mockito.mock(ParseAuditLogService.class)
         );
     }
 

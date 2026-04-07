@@ -129,7 +129,9 @@ public class LlmServiceImpl implements LlmService {
             ticket.setLocationText(normalized.getLocation());
             ticket.setFaultDesc(normalized.getFaultPhenomenon());
             ticket.setUrgencyLevel(normalized.getUrgency());
-            ticket.setContactMasked(normalized.getContact());
+            if (normalized.getContact() != null && !normalized.getContact().isBlank()) {
+                ticket.setContactMasked(normalized.getContact());
+            }
             ticket.setTimePreference(normalized.getTimePreference());
             ticket.setCategoryId(resolveCategoryId(normalized.getCategory()));
             ticket.setStatus("已解析");

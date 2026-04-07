@@ -3,6 +3,8 @@ package com.graduation.repair.service.support;
 import com.graduation.repair.domain.entity.LlmParseAuditLog;
 import com.graduation.repair.repository.LlmParseAuditLogRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -15,6 +17,7 @@ public class ParseAuditLogService {
         this.auditLogRepository = auditLogRepository;
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void save(Long ticketId,
                      Long operatorId,
                      String promptVersion,

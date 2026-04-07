@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface RepairTicketRepository extends JpaRepository<RepairTicket, Long> {
 
@@ -25,6 +26,8 @@ public interface RepairTicketRepository extends JpaRepository<RepairTicket, Long
     Page<RepairTicket> findByStatusAndCategoryIdOrderBySubmittedAtDesc(String status, Long categoryId, Pageable pageable);
 
     Page<RepairTicket> findAllByOrderBySubmittedAtDesc(Pageable pageable);
+
+    Optional<RepairTicket> findTopByTicketNoStartingWithOrderByTicketNoDesc(String prefix);
 
     List<RepairTicket> findBySubmittedAtBetween(LocalDateTime start, LocalDateTime end);
 }

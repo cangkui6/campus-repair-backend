@@ -2,6 +2,7 @@ package com.graduation.repair.service.impl;
 
 import com.graduation.repair.common.exception.BizException;
 import com.graduation.repair.domain.dto.TicketCreateRequest;
+import com.graduation.repair.repository.MaintenanceWorkerRepository;
 import com.graduation.repair.repository.OperationLogRepository;
 import com.graduation.repair.repository.RepairTicketRepository;
 import com.graduation.repair.service.NotificationService;
@@ -23,7 +24,8 @@ class TicketServiceImplTest {
                 Mockito.mock(OperationLogRepository.class),
                 Mockito.mock(TicketNoGenerator.class),
                 Mockito.mock(TicketStateMachine.class),
-                Mockito.mock(NotificationService.class)
+                Mockito.mock(NotificationService.class),
+                Mockito.mock(MaintenanceWorkerRepository.class)
         );
     }
 
