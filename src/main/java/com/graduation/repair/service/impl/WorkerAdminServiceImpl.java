@@ -41,6 +41,11 @@ public class WorkerAdminServiceImpl implements WorkerAdminService {
                             .serviceArea(worker.getServiceArea())
                             .currentLoad(worker.getCurrentLoad())
                             .isAvailable(worker.getIsAvailable())
+                            .avgCompleteHours(worker.getAvgCompleteHours())
+                            .acceptRate(worker.getAcceptRate())
+                            .completedTicketCount(worker.getCompletedTicketCount())
+                            .reassignCount(worker.getReassignCount())
+                            .lastActiveAt(worker.getLastActiveAt())
                             .build();
                 })
                 .toList();

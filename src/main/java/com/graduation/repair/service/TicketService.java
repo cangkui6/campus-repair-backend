@@ -4,6 +4,8 @@ import com.graduation.repair.common.pagination.PageResult;
 import com.graduation.repair.domain.dto.TicketCompleteRequest;
 import com.graduation.repair.domain.dto.TicketCreateRequest;
 import com.graduation.repair.domain.dto.TicketEvaluateRequest;
+import com.graduation.repair.domain.dto.TicketSupplementRequest;
+import com.graduation.repair.domain.vo.ReporterEvaluationItemVO;
 import com.graduation.repair.domain.vo.TicketCreateResponse;
 import com.graduation.repair.domain.vo.TicketDetailVO;
 import com.graduation.repair.domain.vo.TicketMyListItemVO;
@@ -16,6 +18,10 @@ public interface TicketService {
     TicketDetailVO getTicketDetail(Long userId, String role, Long ticketId);
 
     PageResult<TicketMyListItemVO> myTickets(Long reporterId, String role, Integer page, Integer size, String status);
+
+    TicketStatusChangeResponse supplementTicket(Long operatorId, String role, Long ticketId, TicketSupplementRequest request);
+
+    PageResult<ReporterEvaluationItemVO> myEvaluations(Long reporterId, String role, Integer page, Integer size);
 
     TicketStatusChangeResponse acceptTicket(Long operatorId, String role, Long ticketId);
 

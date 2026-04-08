@@ -10,5 +10,7 @@ public interface DispatchRecordRepository extends JpaRepository<DispatchRecord, 
 
     List<DispatchRecord> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
+    List<DispatchRecord> findByWorkerIdOrderByCreatedAtDesc(Long workerId);
+
     void deleteByTicketId(Long ticketId);
 }

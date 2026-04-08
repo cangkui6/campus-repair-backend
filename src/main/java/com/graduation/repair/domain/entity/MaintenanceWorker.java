@@ -32,6 +32,21 @@ public class MaintenanceWorker {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "avg_complete_hours", nullable = false)
+    private java.math.BigDecimal avgCompleteHours;
+
+    @Column(name = "accept_rate", nullable = false)
+    private java.math.BigDecimal acceptRate;
+
+    @Column(name = "completed_ticket_count", nullable = false)
+    private Integer completedTicketCount;
+
+    @Column(name = "reassign_count", nullable = false)
+    private Integer reassignCount;
+
+    @Column(name = "last_active_at")
+    private LocalDateTime lastActiveAt;
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 }

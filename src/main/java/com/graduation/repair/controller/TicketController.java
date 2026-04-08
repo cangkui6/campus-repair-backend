@@ -5,6 +5,8 @@ import com.graduation.repair.common.pagination.PageResult;
 import com.graduation.repair.domain.dto.TicketCompleteRequest;
 import com.graduation.repair.domain.dto.TicketCreateRequest;
 import com.graduation.repair.domain.dto.TicketEvaluateRequest;
+import com.graduation.repair.domain.dto.TicketSupplementRequest;
+import com.graduation.repair.domain.vo.ReporterEvaluationItemVO;
 import com.graduation.repair.domain.vo.TicketCreateResponse;
 import com.graduation.repair.domain.vo.TicketDetailVO;
 import com.graduation.repair.domain.vo.TicketMyListItemVO;
@@ -51,6 +53,24 @@ public class TicketController {
     ) {
         AuthUser user = SecurityUserContext.currentUser();
         return ApiResponse.success(ticketService.myTickets(user.getUserId(), user.getRole(), page, size, status));
+    }
+
+    @PostMapping("/{ticketId}/supplement")
+    public ApiResponse<TicketStatusChangeResponse> supplement(
+            @PathVariable Long ticketId,
+            @RequestBody TicketSupplementRequest request
+    ) {
+        AuthUser user = SecurityUserContext.currentUser();
+        return ApiResponse.success(ticketService.supplementTicket(user.getUserId(), user.getRole(), ticketId, request));
+    }
+
+    @GetMapping("/my/evaluations")
+    public ApiResponse<PageResult<ReporterEvaluationItemVO>> myEvaluations(
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "10") Integer size
+    ) {
+        AuthUser user = SecurityUserContext.currentUser();
+        return ApiResponse.success(ticketService.myEvaluations(user.getUserId(), user.getRole(), page, size));
     }
 
     @PostMapping("/{ticketId}/accept")

@@ -6,9 +6,11 @@ import com.graduation.repair.common.pagination.PageResult;
 import com.graduation.repair.domain.dto.TicketCompleteRequest;
 import com.graduation.repair.domain.dto.TicketCreateRequest;
 import com.graduation.repair.domain.dto.TicketEvaluateRequest;
+import com.graduation.repair.domain.dto.TicketSupplementRequest;
 import com.graduation.repair.domain.entity.MaintenanceWorker;
 import com.graduation.repair.domain.entity.OperationLog;
 import com.graduation.repair.domain.entity.RepairTicket;
+import com.graduation.repair.domain.vo.ReporterEvaluationItemVO;
 import com.graduation.repair.domain.vo.TicketCreateResponse;
 import com.graduation.repair.domain.vo.TicketDetailVO;
 import com.graduation.repair.domain.vo.TicketMyListItemVO;
@@ -29,6 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class TicketServiceImpl implements TicketService {
@@ -148,6 +153,47 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    public TicketStatusChangeResponse supplementTicket(Long operatorId, String role, Long ticketId, TicketSupplementRequest request) {
+        ensureReporter(role);
+        RepairTicket ticket = requireTicket(ticketId);
+        if (!ticket.getReporterId().equals(operatorId)) {
+            throw new BizException(4034, "仅报修人可补充信息");
+        }
+        String supplementText = request.getSupplementText() == null ? "" : request.getSupplementText().trim();
+        if (supplementText.isBlank()) {
+            throw new BizException(4002, "补充信息不能为空");
+        }
+        ticket.setRawText(ticket.getRawText() + "\n【补充信息】" + supplementText);
+        if (request.getContactPhone() != null && !request.getContactPhone().isBlank()) {
+            ticket.setContactMasked(maskPhone(request.getContactPhone()));
+        }
+        ticket.setUpdatedAt(LocalDateTime.now());
+        repairTicketRepository.save(ticket);
+        writeStatusLog(ticket.getId(), operatorId, "SUPPLEMENT", ticket.getStatus(), ticket.getStatus(), "用户补充信息: " + supplementText);
+        notificationService.notifyUser(operatorId, ticket.getId(), "补充信息已提交", "工单" + ticket.getTicketNo() + "补充信息已保存");
+        return new TicketStatusChangeResponse(ticket.getId(), ticket.getStatus(), ticket.getStatus());
+    }
+
+    @Override
+    public PageResult<ReporterEvaluationItemVO> myEvaluations(Long reporterId, String role, Integer page, Integer size) {
+        ensureReporter(role);
+        int pageNo = (page == null || page < 1) ? 1 : page;
+        int pageSize = (size == null || size < 1) ? 10 : Math.min(size, 50);
+        Pageable pageable = PageRequest.of(pageNo - 1, pageSize);
+        Page<RepairTicket> ticketPage = repairTicketRepository.findByReporterIdOrderBySubmittedAtDesc(reporterId, pageable);
+        Map<Long, List<OperationLog>> logMap = operationLogRepository.findAll().stream()
+                .filter(item -> item.getDetail() != null && item.getDetail().contains("用户评价:"))
+                .collect(Collectors.groupingBy(OperationLog::getTicketId));
+
+        List<ReporterEvaluationItemVO> records = ticketPage.getContent().stream()
+                .map(ticket -> toEvaluation(ticket, logMap.get(ticket.getId())))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        return new PageResult<>(records.size(), pageNo, pageSize, records);
+    }
+
+    @Override
+    @Transactional
     public TicketStatusChangeResponse acceptTicket(Long operatorId, String role, Long ticketId) {
         ensureWorkerOrAdmin(role);
         RepairTicket ticket = requireTicket(ticketId);
@@ -211,6 +257,42 @@ public class TicketServiceImpl implements TicketService {
         ticket.setUpdatedAt(LocalDateTime.now());
         repairTicketRepository.save(ticket);
         return response;
+    }
+
+    private ReporterEvaluationItemVO toEvaluation(RepairTicket ticket, List<OperationLog> logs) {
+        if (logs == null || logs.isEmpty()) {
+            return null;
+        }
+        OperationLog latest = logs.stream().max(java.util.Comparator.comparing(OperationLog::getCreatedAt)).orElse(null);
+        if (latest == null) {
+            return null;
+        }
+        String detail = latest.getDetail() == null ? "" : latest.getDetail();
+        return ReporterEvaluationItemVO.builder()
+                .ticketId(ticket.getId())
+                .ticketNo(ticket.getTicketNo())
+                .score(parseScore(detail))
+                .comment(parseComment(detail))
+                .ticketStatus(ticket.getStatus())
+                .evaluatedAt(latest.getCreatedAt())
+                .build();
+    }
+
+    private Integer parseScore(String detail) {
+        try {
+            int idx = detail.indexOf("score=");
+            if (idx < 0) {
+                return null;
+            }
+            return Integer.valueOf(detail.substring(idx + 6).split(",")[0].trim());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String parseComment(String detail) {
+        int idx = detail.indexOf("comment=");
+        return idx < 0 ? "" : detail.substring(idx + 8).trim();
     }
 
     private TicketStatusChangeResponse changeStatus(RepairTicket ticket, Long operatorId, String targetStatus, String detail) {

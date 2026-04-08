@@ -16,4 +16,9 @@ public class WorkerOptionVO {
     private String serviceArea;
     private Integer currentLoad;
     private Integer isAvailable;
+    private java.math.BigDecimal avgCompleteHours;
+    private java.math.BigDecimal acceptRate;
+    private Integer completedTicketCount;
+    private Integer reassignCount;
+    private java.time.LocalDateTime lastActiveAt;
 }

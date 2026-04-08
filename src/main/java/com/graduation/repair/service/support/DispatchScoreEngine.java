@@ -113,8 +113,16 @@ public class DispatchScoreEngine {
     }
 
     private double perfScore(MaintenanceWorker worker) {
-        int load = worker.getCurrentLoad() == null ? 0 : worker.getCurrentLoad();
-        return load <= 2 ? 0.9 : (load <= 4 ? 0.75 : 0.6);
+        double acceptRate = worker.getAcceptRate() == null ? 0.85 : worker.getAcceptRate().doubleValue();
+        double avgHours = worker.getAvgCompleteHours() == null ? 24.0 : worker.getAvgCompleteHours().doubleValue();
+        int completedCount = worker.getCompletedTicketCount() == null ? 0 : worker.getCompletedTicketCount();
+        int reassignCount = worker.getReassignCount() == null ? 0 : worker.getReassignCount();
+
+        double completionScore = avgHours <= 12 ? 1.0 : (avgHours <= 24 ? 0.85 : (avgHours <= 36 ? 0.7 : 0.55));
+        double experienceScore = completedCount >= 40 ? 1.0 : (completedCount >= 20 ? 0.85 : (completedCount >= 10 ? 0.75 : 0.65));
+        double reassignPenalty = reassignCount >= 8 ? 0.15 : (reassignCount >= 4 ? 0.08 : 0.0);
+
+        return Math.max(0.3, Math.min(1.0, acceptRate * 0.45 + completionScore * 0.35 + experienceScore * 0.20 - reassignPenalty));
     }
 
     private double urgencyScore(RepairTicket ticket, MaintenanceWorker worker, double skill, double area) {

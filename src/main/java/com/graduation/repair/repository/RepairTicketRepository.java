@@ -19,6 +19,8 @@ public interface RepairTicketRepository extends JpaRepository<RepairTicket, Long
 
     Page<RepairTicket> findByCurrentWorkerIdAndStatusOrderBySubmittedAtDesc(Long currentWorkerId, String status, Pageable pageable);
 
+    Page<RepairTicket> findByStatusAndCurrentWorkerIdIsNullOrderBySubmittedAtDesc(String status, Pageable pageable);
+
     Page<RepairTicket> findByStatusOrderBySubmittedAtDesc(String status, Pageable pageable);
 
     Page<RepairTicket> findByCategoryIdOrderBySubmittedAtDesc(Long categoryId, Pageable pageable);
