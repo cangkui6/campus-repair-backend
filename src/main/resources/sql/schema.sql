@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS repair_ticket (
     CONSTRAINT fk_ticket_category_id FOREIGN KEY (category_id) REFERENCES fault_category (id),
     CONSTRAINT fk_ticket_worker_id FOREIGN KEY (current_worker_id) REFERENCES maintenance_worker (id),
     CONSTRAINT ck_ticket_urgency CHECK (urgency_level IS NULL OR urgency_level IN ('LOW', 'MEDIUM', 'HIGH')),
-    CONSTRAINT ck_ticket_status CHECK (status IN ('待受理', '已解析', '已派单', '处理中', '已完成', '已评价', '已关闭'))
+    CONSTRAINT ck_ticket_status CHECK (status IN ('待受理', '待人工确认', '已解析', '待分配', '已派单', '处理中', '已完成', '已评价', '已关闭'))
 );
 
 CREATE TABLE IF NOT EXISTS dispatch_record (

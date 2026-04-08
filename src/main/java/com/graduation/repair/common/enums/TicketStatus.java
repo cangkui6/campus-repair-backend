@@ -5,7 +5,9 @@ import lombok.Getter;
 @Getter
 public enum TicketStatus {
     PENDING("待受理"),
+    MANUAL_REVIEW("待人工确认"),
     PARSED("已解析"),
+    PENDING_DISPATCH("待分配"),
     DISPATCHED("已派单"),
     PROCESSING("处理中"),
     COMPLETED("已完成"),

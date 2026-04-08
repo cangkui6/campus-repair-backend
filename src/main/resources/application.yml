@@ -15,4 +15,3 @@ security:
     expire-seconds: 86400
 
 llm:
-  provider: ZHIPU_GLM

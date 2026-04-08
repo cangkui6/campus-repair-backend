@@ -1,5 +1,6 @@
 package com.graduation.repair.service.impl;
 
+import com.graduation.repair.common.enums.TicketStatus;
 import com.graduation.repair.common.exception.BizException;
 import com.graduation.repair.domain.dto.DispatchManualRequest;
 import com.graduation.repair.domain.dto.DispatchRetryRequest;
@@ -84,9 +85,9 @@ public class DispatchServiceImpl implements DispatchService {
         List<DispatchScoreVO> ranking = dispatchScoreEngine.rank(ticket, candidates);
         DispatchScoreVO best = ranking.get(0);
 
-        updateTicketAssignment(ticket, best.getWorkerId(), "已派单");
+        updateTicketAssignment(ticket, best.getWorkerId(), TicketStatus.DISPATCHED.getValue());
         saveDispatchRecord(ticketId, best, "AUTO", "ASSIGNED", "自动派单");
-        writeDispatchLog(ticketId, operatorId, "DISPATCH", "已解析", "已派单", "自动派单成功");
+        writeDispatchLog(ticketId, operatorId, "DISPATCH", ticket.getStatus(), TicketStatus.DISPATCHED.getValue(), "自动派单成功");
         notifyDispatch(ticket, best.getWorkerId(), "系统自动派单");
 
         return DispatchResultVO.builder()
@@ -108,11 +109,13 @@ public class DispatchServiceImpl implements DispatchService {
                 .orElseThrow(() -> new BizException(4042, "维修人员不存在"));
 
         String currentStatus = ticket.getStatus();
-        if (!"已解析".equals(currentStatus) && !"已派单".equals(currentStatus)) {
+        if (!TicketStatus.PARSED.getValue().equals(currentStatus)
+                && !TicketStatus.PENDING_DISPATCH.getValue().equals(currentStatus)
+                && !TicketStatus.DISPATCHED.getValue().equals(currentStatus)) {
             throw new BizException(4001, "当前状态不支持人工改派");
         }
 
-        updateTicketAssignment(ticket, worker.getId(), "已派单");
+        updateTicketAssignment(ticket, worker.getId(), TicketStatus.DISPATCHED.getValue());
 
         DispatchScoreVO score = DispatchScoreVO.builder()
                 .workerId(worker.getId())
@@ -143,7 +146,7 @@ public class DispatchServiceImpl implements DispatchService {
     public DispatchResultVO retryDispatch(Long operatorId, String role, Long ticketId, DispatchRetryRequest request) {
         ensureAdmin(role);
         RepairTicket ticket = requireTicket(ticketId);
-        if (!"已派单".equals(ticket.getStatus())) {
+        if (!TicketStatus.DISPATCHED.getValue().equals(ticket.getStatus())) {
             throw new BizException(4001, "仅已派单状态支持拒单重派");
         }
 
@@ -165,9 +168,9 @@ public class DispatchServiceImpl implements DispatchService {
         List<DispatchScoreVO> ranking = dispatchScoreEngine.rank(ticket, candidates);
         DispatchScoreVO best = ranking.get(0);
 
-        updateTicketAssignment(ticket, best.getWorkerId(), "已派单");
+        updateTicketAssignment(ticket, best.getWorkerId(), TicketStatus.DISPATCHED.getValue());
         saveDispatchRecord(ticketId, best, "AUTO", "ASSIGNED", "拒单后重派");
-        writeDispatchLog(ticketId, operatorId, "DISPATCH", "已派单", "已派单", "拒单重派成功");
+        writeDispatchLog(ticketId, operatorId, "DISPATCH", TicketStatus.DISPATCHED.getValue(), TicketStatus.DISPATCHED.getValue(), "拒单重派成功");
         notifyDispatch(ticket, best.getWorkerId(), "拒单后重派成功");
 
         if (oldWorkerId != null && !Objects.equals(oldWorkerId, best.getWorkerId())) {
@@ -189,8 +192,8 @@ public class DispatchServiceImpl implements DispatchService {
     }
 
     private void ensureCanAutoDispatch(RepairTicket ticket) {
-        if (!ticketStateMachine.canTransit(ticket.getStatus(), "已派单")) {
-            throw new BizException(4001, "自动派单仅允许已解析工单执行");
+        if (!ticketStateMachine.canTransit(ticket.getStatus(), TicketStatus.DISPATCHED.getValue())) {
+            throw new BizException(4001, "自动派单仅允许已解析或待分配工单执行");
         }
     }
 
@@ -226,13 +229,13 @@ public class DispatchServiceImpl implements DispatchService {
         Long oldWorkerId = ticket.getCurrentWorkerId();
         String oldStatus = ticket.getStatus();
         ticket.setCurrentWorkerId(null);
-        ticket.setStatus("已解析");
+        ticket.setStatus(TicketStatus.PENDING_DISPATCH.getValue());
         ticket.setUpdatedAt(LocalDateTime.now());
         repairTicketRepository.save(ticket);
         if (oldWorkerId != null) {
             decrementWorkerLoad(oldWorkerId);
         }
-        writeDispatchLog(ticket.getId(), operatorId, "DISPATCH", oldStatus, "已解析", detail + "（PENDING_MANUAL）");
+        writeDispatchLog(ticket.getId(), operatorId, "DISPATCH", oldStatus, TicketStatus.PENDING_DISPATCH.getValue(), detail + "（PENDING_MANUAL）");
         notifyAdminsPendingManual(ticket, detail);
     }
 

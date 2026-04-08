@@ -1,5 +1,6 @@
 package com.graduation.repair.service.support;
 
+import com.graduation.repair.common.enums.TicketStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -11,20 +12,31 @@ public class TicketStateMachine {
     private final Set<String> allowedTransitions = new HashSet<>();
 
     public TicketStateMachine() {
-        allow("待受理", "已解析");
-        allow("已解析", "已派单");
-        allow("已派单", "处理中");
-        allow("处理中", "已完成");
-        allow("已完成", "已评价");
-        allow("已完成", "已关闭");
-        allow("已评价", "已关闭");
+        allow(TicketStatus.PENDING, TicketStatus.PARSED);
+        allow(TicketStatus.PENDING, TicketStatus.MANUAL_REVIEW);
+        allow(TicketStatus.PENDING, TicketStatus.PENDING_DISPATCH);
+        allow(TicketStatus.MANUAL_REVIEW, TicketStatus.PARSED);
+        allow(TicketStatus.MANUAL_REVIEW, TicketStatus.PENDING_DISPATCH);
+        allow(TicketStatus.PARSED, TicketStatus.PENDING_DISPATCH);
+        allow(TicketStatus.PARSED, TicketStatus.DISPATCHED);
+        allow(TicketStatus.PENDING_DISPATCH, TicketStatus.DISPATCHED);
+        allow(TicketStatus.DISPATCHED, TicketStatus.PROCESSING);
+        allow(TicketStatus.PROCESSING, TicketStatus.COMPLETED);
+        allow(TicketStatus.COMPLETED, TicketStatus.EVALUATED);
+        allow(TicketStatus.COMPLETED, TicketStatus.CLOSED);
+        allow(TicketStatus.EVALUATED, TicketStatus.CLOSED);
 
-        allow("已派单", "已解析");
-        allow("处理中", "已派单");
+        allow(TicketStatus.DISPATCHED, TicketStatus.PENDING_DISPATCH);
+        allow(TicketStatus.DISPATCHED, TicketStatus.PARSED);
+        allow(TicketStatus.PROCESSING, TicketStatus.DISPATCHED);
     }
 
     public boolean canTransit(String from, String to) {
         return allowedTransitions.contains(key(from, to));
+    }
+
+    private void allow(TicketStatus from, TicketStatus to) {
+        allow(from.getValue(), to.getValue());
     }
 
     private void allow(String from, String to) {

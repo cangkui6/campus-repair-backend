@@ -2,6 +2,7 @@ package com.graduation.repair.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.graduation.repair.common.enums.TicketStatus;
 import com.graduation.repair.common.exception.BizException;
 import com.graduation.repair.domain.dto.LlmClassifyRequest;
 import com.graduation.repair.domain.dto.LlmParseRequest;
@@ -104,7 +105,13 @@ public class LlmServiceImpl implements LlmService {
         } catch (BizException ex) {
             ParseFailureReason reason = mapFailureReason(ex.getMessage());
             if (ticket != null) {
-                writeParseLog(ticket.getId(), operatorId, ticket.getStatus(), ticket.getStatus(), "LLM解析异常，已转人工确认");
+                String fromStatus = ticket.getStatus();
+                if (ticketStateMachine.canTransit(fromStatus, TicketStatus.MANUAL_REVIEW.getValue())) {
+                    ticket.setStatus(TicketStatus.MANUAL_REVIEW.getValue());
+                    ticket.setUpdatedAt(LocalDateTime.now());
+                    repairTicketRepository.save(ticket);
+                }
+                writeParseLog(ticket.getId(), operatorId, fromStatus, TicketStatus.MANUAL_REVIEW.getValue(), "LLM解析异常，已转人工确认");
             }
             parseFallbackHandler.enqueue(request.getTicketId(), operatorId, rawText, reason);
             parseAuditLogService.save(request.getTicketId(), operatorId, promptVersion, llmClientAdapter.providerName(), llmClientAdapter.modelName(), clientResponse.getLatencyMs(), clientResponse.getRawResponse(), "FAILED_NEED_MANUAL_REVIEW", "{}");
@@ -124,10 +131,10 @@ public class LlmServiceImpl implements LlmService {
             }
             ticket.setTimePreference(normalized.getTimePreference());
             ticket.setCategoryId(resolveCategoryId(normalized.getCategory()));
-            ticket.setStatus("已解析");
+            ticket.setStatus(TicketStatus.PENDING_DISPATCH.getValue());
             ticket.setUpdatedAt(LocalDateTime.now());
             repairTicketRepository.save(ticket);
-            writeParseLog(ticket.getId(), operatorId, fromStatus, "已解析", "LLM解析成功");
+            writeParseLog(ticket.getId(), operatorId, fromStatus, TicketStatus.PENDING_DISPATCH.getValue(), "LLM解析成功，已进入待分配池");
         }
 
         parseAuditLogService.save(request.getTicketId(), operatorId, promptVersion, llmClientAdapter.providerName(), llmClientAdapter.modelName(), clientResponse.getLatencyMs(), clientResponse.getRawResponse(), "SUCCESS", normalizedJson);
