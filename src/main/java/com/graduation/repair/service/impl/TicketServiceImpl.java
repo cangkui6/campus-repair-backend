@@ -116,6 +116,7 @@ public class TicketServiceImpl implements TicketService {
                 .locationText(ticket.getLocationText())
                 .faultDesc(ticket.getFaultDesc())
                 .urgencyLevel(ticket.getUrgencyLevel())
+                .categoryId(ticket.getCategoryId())
                 .status(ticket.getStatus())
                 .contactMasked(ticket.getContactMasked())
                 .submittedAt(ticket.getSubmittedAt())

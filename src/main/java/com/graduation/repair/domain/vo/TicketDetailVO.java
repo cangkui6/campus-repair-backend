@@ -17,6 +17,7 @@ public class TicketDetailVO {
     private String locationText;
     private String faultDesc;
     private String urgencyLevel;
+    private Long categoryId;
     private String status;
     private String contactMasked;
     private LocalDateTime submittedAt;
