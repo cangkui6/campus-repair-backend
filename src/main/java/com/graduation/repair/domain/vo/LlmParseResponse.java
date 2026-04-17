@@ -22,4 +22,6 @@ public class LlmParseResponse {
     private String modelName;
     private Long latencyMs;
     private Boolean fallbackQueued;
+    private Boolean ragEnabled;
+    private Integer ragHitCount;
 }

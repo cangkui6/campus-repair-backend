@@ -14,4 +14,10 @@ security:
     secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     expire-seconds: 86400
 
-llm:
+rag:
+  enabled: false
+  base-url: http://localhost:9001
+  retrieve-path: /api/v1/rag/retrieve
+  health-path: /api/v1/rag/health
+  top-k: 4
+  timeout-seconds: 5

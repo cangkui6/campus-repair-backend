@@ -22,7 +22,15 @@ llm:
   chat-path: /chat/completions
   model: glm-4-air-250414
   prompt:
-    parse-version: parse-v1
+    parse-version: parse-v2
     classify-version: classify-v1
   api-key: 78c84f14f6a049cc989c64952d56da16.ReovTQVYUkOxse2i
   timeout-seconds: 30
+
+rag:
+  enabled: true
+  base-url: http://localhost:9001
+  retrieve-path: /api/v1/rag/retrieve
+  health-path: /api/v1/rag/health
+  top-k: 4
+  timeout-seconds: 5

@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class PromptManager {
 
-    @Value("${llm.prompt.parse-version:parse-v1}")
+    @Value("${llm.prompt.parse-version:parse-v2}")
     private String parsePromptVersion;
 
     @Value("${llm.prompt.classify-version:classify-v1}")
@@ -16,11 +16,22 @@ public class PromptManager {
         return parsePromptVersion;
     }
 
+    public String parsePromptVersion(boolean ragEnhanced) {
+        return ragEnhanced ? "parse-rag-v2" : parsePromptVersion;
+    }
+
     public String classifyPromptVersion() {
         return classifyPromptVersion;
     }
 
     public String parseSystemPrompt() {
+        return parseSystemPrompt(false);
+    }
+
+    public String parseSystemPrompt(boolean ragEnhanced) {
+        if (ragEnhanced) {
+            return "你是校园报修工单解析助手。你会收到【检索到的领域知识】和【用户报修文本】。请优先依据用户文本，在知识上下文辅助下输出严格JSON，不要输出解释。字段包括：category, location, faultPhenomenon, urgency, contact, timePreference, confidence。category 只能是 WATER_ELECTRIC、NETWORK、FURNITURE、AIR_CONDITIONER、DOOR_WINDOW、LIGHTING、OTHER。urgency 只能是 LOW、MEDIUM、HIGH。location 缺失时填写 未知位置，contact 和 timePreference 可为 null。";
+        }
         if ("parse-v2".equals(parsePromptVersion)) {
             return "你是校园报修工单解析助手。请输出 JSON，字段包括：category, location, faultPhenomenon, urgency, contact, timePreference, confidence。对无意义文本要将 confidence 设为 0.1 以下，location 留空。";
         }

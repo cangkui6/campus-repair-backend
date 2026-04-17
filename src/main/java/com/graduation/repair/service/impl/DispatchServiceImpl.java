@@ -69,6 +69,7 @@ public class DispatchServiceImpl implements DispatchService {
         ensureAdmin(role);
         RepairTicket ticket = requireTicket(ticketId);
         ensureCanAutoDispatch(ticket);
+        String oldStatus = ticket.getStatus();
 
         List<MaintenanceWorker> candidates = maintenanceWorkerRepository.findByIsAvailable(1);
         if (candidates.isEmpty()) {
@@ -87,7 +88,7 @@ public class DispatchServiceImpl implements DispatchService {
 
         updateTicketAssignment(ticket, best.getWorkerId(), TicketStatus.DISPATCHED.getValue());
         saveDispatchRecord(ticketId, best, "AUTO", "ASSIGNED", "自动派单");
-        writeDispatchLog(ticketId, operatorId, "DISPATCH", ticket.getStatus(), TicketStatus.DISPATCHED.getValue(), "自动派单成功");
+        writeDispatchLog(ticketId, operatorId, "DISPATCH", oldStatus, TicketStatus.DISPATCHED.getValue(), "自动派单成功");
         notifyDispatch(ticket, best.getWorkerId(), "系统自动派单");
 
         return DispatchResultVO.builder()

@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -108,6 +109,12 @@ public class TicketServiceImpl implements TicketService {
         if (ROLE_REPORTER.equals(role) && !ticket.getReporterId().equals(userId)) {
             throw new BizException(4031, "无权限访问该工单");
         }
+        if (ROLE_WORKER.equals(role)) {
+            Long workerRecordId = requireWorkerRecordId(userId);
+            if (ticket.getCurrentWorkerId() == null || !ticket.getCurrentWorkerId().equals(workerRecordId)) {
+                throw new BizException(4032, "仅当前维修人员可查看该工单详情");
+            }
+        }
 
         return TicketDetailVO.builder()
                 .ticketId(ticket.getId())
@@ -180,17 +187,17 @@ public class TicketServiceImpl implements TicketService {
         ensureReporter(role);
         int pageNo = (page == null || page < 1) ? 1 : page;
         int pageSize = (size == null || size < 1) ? 10 : Math.min(size, 50);
-        Pageable pageable = PageRequest.of(pageNo - 1, pageSize);
-        Page<RepairTicket> ticketPage = repairTicketRepository.findByReporterIdOrderBySubmittedAtDesc(reporterId, pageable);
-        Map<Long, List<OperationLog>> logMap = operationLogRepository.findAll().stream()
-                .filter(item -> item.getDetail() != null && item.getDetail().contains("用户评价:"))
-                .collect(Collectors.groupingBy(OperationLog::getTicketId));
 
-        List<ReporterEvaluationItemVO> records = ticketPage.getContent().stream()
-                .map(ticket -> toEvaluation(ticket, logMap.get(ticket.getId())))
-                .filter(java.util.Objects::nonNull)
+        List<RepairTicket> reporterTickets = repairTicketRepository.findByReporterIdOrderBySubmittedAtDesc(reporterId, Pageable.unpaged()).getContent();
+        Map<Long, RepairTicket> ticketMap = reporterTickets.stream().collect(Collectors.toMap(RepairTicket::getId, Function.identity()));
+        List<ReporterEvaluationItemVO> allRecords = operationLogRepository.findAll().stream()
+                .filter(item -> item.getDetail() != null && item.getDetail().contains("用户评价:"))
+                .filter(item -> ticketMap.containsKey(item.getTicketId()))
+                .sorted(Comparator.comparing(OperationLog::getCreatedAt).reversed())
+                .map(item -> toEvaluation(ticketMap.get(item.getTicketId()), item))
                 .toList();
-        return new PageResult<>(records.size(), pageNo, pageSize, records);
+
+        return new PageResult<>(allRecords.size(), pageNo, pageSize, paginate(allRecords, pageNo, pageSize));
     }
 
     @Override
@@ -260,23 +267,25 @@ public class TicketServiceImpl implements TicketService {
         return response;
     }
 
-    private ReporterEvaluationItemVO toEvaluation(RepairTicket ticket, List<OperationLog> logs) {
-        if (logs == null || logs.isEmpty()) {
+    private ReporterEvaluationItemVO toEvaluation(RepairTicket ticket, OperationLog log) {
+        if (ticket == null || log == null) {
             return null;
         }
-        OperationLog latest = logs.stream().max(java.util.Comparator.comparing(OperationLog::getCreatedAt)).orElse(null);
-        if (latest == null) {
-            return null;
-        }
-        String detail = latest.getDetail() == null ? "" : latest.getDetail();
+        String detail = log.getDetail() == null ? "" : log.getDetail();
         return ReporterEvaluationItemVO.builder()
                 .ticketId(ticket.getId())
                 .ticketNo(ticket.getTicketNo())
                 .score(parseScore(detail))
                 .comment(parseComment(detail))
                 .ticketStatus(ticket.getStatus())
-                .evaluatedAt(latest.getCreatedAt())
+                .evaluatedAt(log.getCreatedAt())
                 .build();
+    }
+
+    private <T> List<T> paginate(List<T> source, int pageNo, int pageSize) {
+        int fromIndex = Math.min((pageNo - 1) * pageSize, source.size());
+        int toIndex = Math.min(fromIndex + pageSize, source.size());
+        return source.subList(fromIndex, toIndex);
     }
 
     private Integer parseScore(String detail) {

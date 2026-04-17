@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.graduation.repair.common.exception.BizException;
 import com.graduation.repair.domain.dto.LlmParseRequest;
 import com.graduation.repair.domain.entity.RepairTicket;
+import com.graduation.repair.integration.rag.RagClient;
 import com.graduation.repair.repository.FaultCategoryRepository;
 import com.graduation.repair.repository.OperationLogRepository;
 import com.graduation.repair.repository.RepairTicketRepository;
@@ -13,6 +14,7 @@ import com.graduation.repair.service.support.ParseAuditLogService;
 import com.graduation.repair.service.support.ParseFallbackHandler;
 import com.graduation.repair.service.support.ParseResultValidator;
 import com.graduation.repair.service.support.PromptManager;
+import com.graduation.repair.service.support.RagPromptBuilder;
 import com.graduation.repair.service.support.TicketStateMachine;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,11 +38,15 @@ class LlmServiceImplTest {
         Mockito.when(llmClientAdapter.chatJson(Mockito.anyString(), Mockito.anyString()))
                 .thenReturn(new LlmClientResponse("{\"category\":\"NETWORK\",\"location\":\"教学楼\",\"faultPhenomenon\":\"网络掉线\",\"urgency\":\"HIGH\",\"confidence\":0.92}", 123L));
         Mockito.when(llmClientAdapter.modelName()).thenReturn("mock-model");
+        Mockito.when(llmClientAdapter.providerName()).thenReturn("mock-provider");
 
         PromptManager promptManager = Mockito.mock(PromptManager.class);
         Mockito.when(promptManager.parsePromptVersion()).thenReturn("parse-v1");
         Mockito.when(promptManager.parseSystemPrompt()).thenReturn("system");
         Mockito.when(promptManager.parseUserPrompt(Mockito.anyString())).thenReturn("user");
+
+        RagClient ragClient = Mockito.mock(RagClient.class);
+        Mockito.when(ragClient.isEnabled()).thenReturn(false);
 
         llmService = new LlmServiceImpl(
                 repairTicketRepository,
@@ -52,7 +58,9 @@ class LlmServiceImplTest {
                 promptManager,
                 new ParseResultValidator(),
                 Mockito.mock(ParseFallbackHandler.class),
-                Mockito.mock(ParseAuditLogService.class)
+                Mockito.mock(ParseAuditLogService.class),
+                ragClient,
+                new RagPromptBuilder()
         );
     }
 
@@ -64,7 +72,7 @@ class LlmServiceImplTest {
         ticket.setRawText("网络掉线");
 
         Mockito.when(repairTicketRepository.findById(100L)).thenReturn(Optional.of(ticket));
-        Mockito.when(ticketStateMachine.canTransit("已关闭", "已解析")).thenReturn(false);
+        Mockito.when(ticketStateMachine.canTransit("已关闭", "待人工确认")).thenReturn(false);
 
         LlmParseRequest request = new LlmParseRequest();
         request.setTicketId(100L);

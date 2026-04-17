@@ -71,9 +71,9 @@ public class WorkerTaskServiceImpl implements WorkerTaskService {
     public PageResult<WorkerHistoryItemVO> myHistory(Long userId, String role, Integer page, Integer size) {
         ensureWorker(role);
         MaintenanceWorker worker = requireWorker(userId);
-        Pageable pageable = PageRequest.of(normalizePage(page) - 1, normalizeSize(size));
-        Page<RepairTicket> ticketPage = repairTicketRepository.findByCurrentWorkerIdOrderBySubmittedAtDesc(worker.getId(), pageable);
-        List<WorkerHistoryItemVO> records = ticketPage.getContent().stream()
+        int pageNo = normalizePage(page);
+        int pageSize = normalizeSize(size);
+        List<WorkerHistoryItemVO> allRecords = repairTicketRepository.findByCurrentWorkerIdOrderBySubmittedAtDesc(worker.getId(), Pageable.unpaged()).getContent().stream()
                 .filter(item -> TicketStatus.COMPLETED.getValue().equals(item.getStatus()) || TicketStatus.EVALUATED.getValue().equals(item.getStatus()) || TicketStatus.CLOSED.getValue().equals(item.getStatus()))
                 .map(item -> WorkerHistoryItemVO.builder()
                         .ticketId(item.getId())
@@ -85,7 +85,7 @@ public class WorkerTaskServiceImpl implements WorkerTaskService {
                         .completedAt(item.getCompletedAt())
                         .build())
                 .toList();
-        return new PageResult<>(records.size(), pageable.getPageNumber() + 1, pageable.getPageSize(), records);
+        return new PageResult<>(allRecords.size(), pageNo, pageSize, paginate(allRecords, pageNo, pageSize));
     }
 
     @Override
@@ -196,5 +196,11 @@ public class WorkerTaskServiceImpl implements WorkerTaskService {
 
     private int normalizeSize(Integer size) {
         return (size == null || size < 1) ? 10 : Math.min(size, 50);
+    }
+
+    private <T> List<T> paginate(List<T> source, int pageNo, int pageSize) {
+        int fromIndex = Math.min((pageNo - 1) * pageSize, source.size());
+        int toIndex = Math.min(fromIndex + pageSize, source.size());
+        return source.subList(fromIndex, toIndex);
     }
 }

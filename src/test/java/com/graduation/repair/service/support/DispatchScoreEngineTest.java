@@ -1,5 +1,6 @@
 package com.graduation.repair.service.support;
 
+import com.graduation.repair.domain.entity.DispatchWeightConfig;
 import com.graduation.repair.domain.entity.FaultCategory;
 import com.graduation.repair.domain.entity.MaintenanceWorker;
 import com.graduation.repair.domain.entity.RepairTicket;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,7 +23,16 @@ class DispatchScoreEngineTest {
     @BeforeEach
     void setUp() {
         faultCategoryRepository = Mockito.mock(FaultCategoryRepository.class);
-        dispatchScoreEngine = new DispatchScoreEngine(faultCategoryRepository);
+        DispatchWeightManager dispatchWeightManager = Mockito.mock(DispatchWeightManager.class);
+        DispatchWeightConfig config = new DispatchWeightConfig();
+        config.setVersionNo(1);
+        config.setWeightSkill(BigDecimal.valueOf(0.35));
+        config.setWeightArea(BigDecimal.valueOf(0.20));
+        config.setWeightLoad(BigDecimal.valueOf(0.20));
+        config.setWeightPerf(BigDecimal.valueOf(0.10));
+        config.setWeightUrgency(BigDecimal.valueOf(0.15));
+        Mockito.when(dispatchWeightManager.activeConfig()).thenReturn(config);
+        dispatchScoreEngine = new DispatchScoreEngine(faultCategoryRepository, dispatchWeightManager);
     }
 
     @Test
