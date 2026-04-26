@@ -21,4 +21,10 @@ public class TicketDetailVO {
     private String status;
     private String contactMasked;
     private LocalDateTime submittedAt;
+    private LocalDateTime completedAt;
+    private String repairResult;
+    private Integer evaluationScore;
+    private String evaluationComment;
+    private LocalDateTime evaluatedAt;
+    private LlmTraceVO llmTrace;
 }

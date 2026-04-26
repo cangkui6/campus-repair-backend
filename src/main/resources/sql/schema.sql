@@ -58,6 +58,10 @@ CREATE TABLE IF NOT EXISTS repair_ticket (
     current_worker_id BIGINT,
     submitted_at DATETIME NOT NULL,
     completed_at DATETIME,
+    repair_result VARCHAR(500),
+    evaluation_score INT,
+    evaluation_comment VARCHAR(500),
+    evaluated_at DATETIME,
     closed_at DATETIME,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
@@ -65,6 +69,7 @@ CREATE TABLE IF NOT EXISTS repair_ticket (
     CONSTRAINT fk_ticket_reporter_id FOREIGN KEY (reporter_id) REFERENCES sys_user (id),
     CONSTRAINT fk_ticket_category_id FOREIGN KEY (category_id) REFERENCES fault_category (id),
     CONSTRAINT fk_ticket_worker_id FOREIGN KEY (current_worker_id) REFERENCES maintenance_worker (id),
+    CONSTRAINT ck_ticket_evaluation_score CHECK (evaluation_score IS NULL OR evaluation_score BETWEEN 1 AND 5),
     CONSTRAINT ck_ticket_urgency CHECK (urgency_level IS NULL OR urgency_level IN ('LOW', 'MEDIUM', 'HIGH')),
     CONSTRAINT ck_ticket_status CHECK (status IN ('待受理', '待人工确认', '已解析', '待分配', '已派单', '处理中', '已完成', '已评价', '已关闭'))
 );
@@ -171,4 +176,10 @@ CREATE TABLE IF NOT EXISTS llm_parse_review_queue (
     CONSTRAINT fk_llm_queue_operator_id FOREIGN KEY (operator_id) REFERENCES sys_user (id)
 );
 
--- 索引可在数据库初始化后按需手动创建，避免不同MySQL版本语法兼容问题
+CREATE INDEX idx_ticket_reporter_status ON repair_ticket(reporter_id, status);
+CREATE INDEX idx_ticket_worker_status ON repair_ticket(current_worker_id, status);
+CREATE INDEX idx_ticket_submitted_at ON repair_ticket(submitted_at);
+CREATE INDEX idx_dispatch_ticket ON dispatch_record(ticket_id);
+CREATE INDEX idx_message_receiver_read ON notification_message(receiver_id, is_read);
+CREATE INDEX idx_operation_ticket ON operation_log(ticket_id);
+

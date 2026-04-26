@@ -8,14 +8,17 @@ import com.graduation.repair.domain.dto.TicketCreateRequest;
 import com.graduation.repair.domain.dto.TicketEvaluateRequest;
 import com.graduation.repair.domain.dto.TicketSupplementRequest;
 import com.graduation.repair.domain.entity.MaintenanceWorker;
+import com.graduation.repair.domain.entity.LlmParseAuditLog;
 import com.graduation.repair.domain.entity.OperationLog;
 import com.graduation.repair.domain.entity.RepairTicket;
 import com.graduation.repair.domain.vo.ReporterEvaluationItemVO;
+import com.graduation.repair.domain.vo.LlmTraceVO;
 import com.graduation.repair.domain.vo.TicketCreateResponse;
 import com.graduation.repair.domain.vo.TicketDetailVO;
 import com.graduation.repair.domain.vo.TicketMyListItemVO;
 import com.graduation.repair.domain.vo.TicketStatusChangeResponse;
 import com.graduation.repair.repository.MaintenanceWorkerRepository;
+import com.graduation.repair.repository.LlmParseAuditLogRepository;
 import com.graduation.repair.repository.OperationLogRepository;
 import com.graduation.repair.repository.RepairTicketRepository;
 import com.graduation.repair.service.DispatchFeedbackService;
@@ -30,6 +33,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +55,8 @@ public class TicketServiceImpl implements TicketService {
     private final DispatchFeedbackService dispatchFeedbackService;
     private final NotificationService notificationService;
     private final MaintenanceWorkerRepository maintenanceWorkerRepository;
+    private final LlmParseAuditLogRepository llmParseAuditLogRepository;
+    private final ObjectMapper objectMapper;
 
     public TicketServiceImpl(RepairTicketRepository repairTicketRepository,
                              OperationLogRepository operationLogRepository,
@@ -57,7 +64,9 @@ public class TicketServiceImpl implements TicketService {
                              TicketStateMachine ticketStateMachine,
                              DispatchFeedbackService dispatchFeedbackService,
                              NotificationService notificationService,
-                             MaintenanceWorkerRepository maintenanceWorkerRepository) {
+                             MaintenanceWorkerRepository maintenanceWorkerRepository,
+                             LlmParseAuditLogRepository llmParseAuditLogRepository,
+                             ObjectMapper objectMapper) {
         this.repairTicketRepository = repairTicketRepository;
         this.operationLogRepository = operationLogRepository;
         this.ticketNoGenerator = ticketNoGenerator;
@@ -65,6 +74,8 @@ public class TicketServiceImpl implements TicketService {
         this.dispatchFeedbackService = dispatchFeedbackService;
         this.notificationService = notificationService;
         this.maintenanceWorkerRepository = maintenanceWorkerRepository;
+        this.llmParseAuditLogRepository = llmParseAuditLogRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -127,6 +138,12 @@ public class TicketServiceImpl implements TicketService {
                 .status(ticket.getStatus())
                 .contactMasked(ticket.getContactMasked())
                 .submittedAt(ticket.getSubmittedAt())
+                .completedAt(ticket.getCompletedAt())
+                .repairResult(ticket.getRepairResult())
+                .evaluationScore(ticket.getEvaluationScore())
+                .evaluationComment(ticket.getEvaluationComment())
+                .evaluatedAt(ticket.getEvaluatedAt())
+                .llmTrace(buildLlmTrace(ticket.getId()))
                 .build();
     }
 
@@ -189,12 +206,10 @@ public class TicketServiceImpl implements TicketService {
         int pageSize = (size == null || size < 1) ? 10 : Math.min(size, 50);
 
         List<RepairTicket> reporterTickets = repairTicketRepository.findByReporterIdOrderBySubmittedAtDesc(reporterId, Pageable.unpaged()).getContent();
-        Map<Long, RepairTicket> ticketMap = reporterTickets.stream().collect(Collectors.toMap(RepairTicket::getId, Function.identity()));
-        List<ReporterEvaluationItemVO> allRecords = operationLogRepository.findAll().stream()
-                .filter(item -> item.getDetail() != null && item.getDetail().contains("用户评价:"))
-                .filter(item -> ticketMap.containsKey(item.getTicketId()))
-                .sorted(Comparator.comparing(OperationLog::getCreatedAt).reversed())
-                .map(item -> toEvaluation(ticketMap.get(item.getTicketId()), item))
+        List<ReporterEvaluationItemVO> allRecords = reporterTickets.stream()
+                .filter(item -> item.getEvaluatedAt() != null || item.getEvaluationScore() != null)
+                .sorted(Comparator.comparing(RepairTicket::getEvaluatedAt, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .map(this::toEvaluation)
                 .toList();
 
         return new PageResult<>(allRecords.size(), pageNo, pageSize, paginate(allRecords, pageNo, pageSize));
@@ -230,6 +245,7 @@ public class TicketServiceImpl implements TicketService {
         }
 
         TicketStatusChangeResponse response = changeStatus(ticket, operatorId, TicketStatus.COMPLETED.getValue(), "维修完成: " + request.getRepairResult());
+        ticket.setRepairResult(request.getRepairResult().trim());
         ticket.setCompletedAt(LocalDateTime.now());
         ticket.setUpdatedAt(LocalDateTime.now());
         repairTicketRepository.save(ticket);
@@ -247,9 +263,15 @@ public class TicketServiceImpl implements TicketService {
             throw new BizException(4034, "仅报修人可评价工单");
         }
 
+        String comment = request.getComment() == null ? null : request.getComment().trim();
+        ticket.setEvaluationScore(request.getScore());
+        ticket.setEvaluationComment(comment == null || comment.isBlank() ? null : comment);
+        ticket.setEvaluatedAt(LocalDateTime.now());
+        repairTicketRepository.save(ticket);
+
         String detail = "用户评价: score=" + request.getScore();
-        if (request.getComment() != null && !request.getComment().isBlank()) {
-            detail = detail + ", comment=" + request.getComment().trim();
+        if (comment != null && !comment.isBlank()) {
+            detail = detail + ", comment=" + comment;
         }
         return changeStatus(ticket, operatorId, TicketStatus.EVALUATED.getValue(), detail);
     }
@@ -267,18 +289,17 @@ public class TicketServiceImpl implements TicketService {
         return response;
     }
 
-    private ReporterEvaluationItemVO toEvaluation(RepairTicket ticket, OperationLog log) {
-        if (ticket == null || log == null) {
+    private ReporterEvaluationItemVO toEvaluation(RepairTicket ticket) {
+        if (ticket == null) {
             return null;
         }
-        String detail = log.getDetail() == null ? "" : log.getDetail();
         return ReporterEvaluationItemVO.builder()
                 .ticketId(ticket.getId())
                 .ticketNo(ticket.getTicketNo())
-                .score(parseScore(detail))
-                .comment(parseComment(detail))
+                .score(ticket.getEvaluationScore())
+                .comment(ticket.getEvaluationComment())
                 .ticketStatus(ticket.getStatus())
-                .evaluatedAt(log.getCreatedAt())
+                .evaluatedAt(ticket.getEvaluatedAt())
                 .build();
     }
 
@@ -286,23 +307,6 @@ public class TicketServiceImpl implements TicketService {
         int fromIndex = Math.min((pageNo - 1) * pageSize, source.size());
         int toIndex = Math.min(fromIndex + pageSize, source.size());
         return source.subList(fromIndex, toIndex);
-    }
-
-    private Integer parseScore(String detail) {
-        try {
-            int idx = detail.indexOf("score=");
-            if (idx < 0) {
-                return null;
-            }
-            return Integer.valueOf(detail.substring(idx + 6).split(",")[0].trim());
-        } catch (Exception ex) {
-            return null;
-        }
-    }
-
-    private String parseComment(String detail) {
-        int idx = detail.indexOf("comment=");
-        return idx < 0 ? "" : detail.substring(idx + 8).trim();
     }
 
     private TicketStatusChangeResponse changeStatus(RepairTicket ticket, Long operatorId, String targetStatus, String detail) {
@@ -318,6 +322,53 @@ public class TicketServiceImpl implements TicketService {
         writeStatusLog(ticket.getId(), operatorId, "STATUS_CHANGE", fromStatus, targetStatus, detail);
         notificationService.notifyUser(ticket.getReporterId(), ticket.getId(), "工单状态更新", "工单" + ticket.getTicketNo() + "状态已更新为" + targetStatus);
         return new TicketStatusChangeResponse(ticket.getId(), fromStatus, targetStatus);
+    }
+
+    private LlmTraceVO buildLlmTrace(Long ticketId) {
+        if (ticketId == null) {
+            return null;
+        }
+        return llmParseAuditLogRepository.findTopByTicketIdOrderByCreatedAtDesc(ticketId)
+                .map(this::toLlmTrace)
+                .orElse(null);
+    }
+
+    private LlmTraceVO toLlmTrace(LlmParseAuditLog log) {
+        JsonNode root = parseJson(log.getNormalizedResult());
+        JsonNode parsed = root == null ? null : root.path("parsed");
+        String failureReason = null;
+        if (!"SUCCESS".equals(log.getParseStatus())) {
+            failureReason = root == null ? "解析失败，已进入人工确认" : text(root, "failureReason", "解析失败，已进入人工确认");
+        }
+        return LlmTraceVO.builder()
+                .auditLogId(log.getId())
+                .modelName(log.getModelName())
+                .promptVersion(log.getPromptVersion())
+                .ragEnabled(root != null && root.path("ragEnabled").asBoolean(false))
+                .ragHitCount(root == null ? 0 : root.path("ragHitCount").asInt(0))
+                .confidence(parsed == null || parsed.path("confidence").isMissingNode() ? null : parsed.path("confidence").asDouble())
+                .parseStatus(log.getParseStatus())
+                .failureReason(failureReason)
+                .rawResponse(log.getRawResponse())
+                .normalizedResult(log.getNormalizedResult())
+                .createdAt(log.getCreatedAt())
+                .build();
+    }
+
+    private JsonNode parseJson(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(value);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String text(JsonNode root, String field, String fallback) {
+        JsonNode node = root.path(field);
+        return node.isMissingNode() || node.isNull() || node.asText().isBlank() ? fallback : node.asText();
     }
 
     private Long requireWorkerRecordId(Long userId) {

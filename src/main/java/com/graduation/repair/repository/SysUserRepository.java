@@ -10,5 +10,7 @@ public interface SysUserRepository extends JpaRepository<SysUser, Long> {
 
     Optional<SysUser> findByUsername(String username);
 
+    boolean existsByUsername(String username);
+
     List<SysUser> findByRole(String role);
 }

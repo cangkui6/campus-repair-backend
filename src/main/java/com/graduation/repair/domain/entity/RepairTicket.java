@@ -57,6 +57,18 @@ public class RepairTicket {
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    @Column(name = "repair_result", length = 500)
+    private String repairResult;
+
+    @Column(name = "evaluation_score")
+    private Integer evaluationScore;
+
+    @Column(name = "evaluation_comment", length = 500)
+    private String evaluationComment;
+
+    @Column(name = "evaluated_at")
+    private LocalDateTime evaluatedAt;
+
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
 

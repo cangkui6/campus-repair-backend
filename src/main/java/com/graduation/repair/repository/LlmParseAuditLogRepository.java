@@ -14,4 +14,6 @@ public interface LlmParseAuditLogRepository extends JpaRepository<LlmParseAuditL
     Page<LlmParseAuditLog> findByModelNameContainingIgnoreCaseOrderByCreatedAtDesc(String modelName, Pageable pageable);
 
     Page<LlmParseAuditLog> findByPromptVersionOrderByCreatedAtDesc(String promptVersion, Pageable pageable);
+
+    java.util.Optional<LlmParseAuditLog> findTopByTicketIdOrderByCreatedAtDesc(Long ticketId);
 }

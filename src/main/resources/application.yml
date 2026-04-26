@@ -11,8 +11,8 @@ server:
 
 security:
   jwt:
-    secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-    expire-seconds: 86400
+    secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-change-me-change-me-123456}
+    expire-seconds: ${JWT_EXPIRE_SECONDS:86400}
 
 rag:
   enabled: false

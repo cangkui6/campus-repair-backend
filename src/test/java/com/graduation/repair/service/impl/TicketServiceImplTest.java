@@ -4,6 +4,7 @@ import com.graduation.repair.common.exception.BizException;
 import com.graduation.repair.domain.dto.TicketCreateRequest;
 import com.graduation.repair.domain.entity.MaintenanceWorker;
 import com.graduation.repair.domain.entity.RepairTicket;
+import com.graduation.repair.repository.LlmParseAuditLogRepository;
 import com.graduation.repair.repository.MaintenanceWorkerRepository;
 import com.graduation.repair.repository.OperationLogRepository;
 import com.graduation.repair.repository.RepairTicketRepository;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Optional;
 
@@ -35,7 +37,9 @@ class TicketServiceImplTest {
                 Mockito.mock(TicketStateMachine.class),
                 Mockito.mock(DispatchFeedbackService.class),
                 Mockito.mock(NotificationService.class),
-                maintenanceWorkerRepository
+                maintenanceWorkerRepository,
+                Mockito.mock(LlmParseAuditLogRepository.class),
+                new ObjectMapper()
         );
     }
 
