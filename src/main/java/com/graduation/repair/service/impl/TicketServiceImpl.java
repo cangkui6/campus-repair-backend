@@ -244,8 +244,13 @@ public class TicketServiceImpl implements TicketService {
             }
         }
 
-        TicketStatusChangeResponse response = changeStatus(ticket, operatorId, TicketStatus.COMPLETED.getValue(), "维修完成: " + request.getRepairResult());
-        ticket.setRepairResult(request.getRepairResult().trim());
+        String repairResult = request.getRepairResult() == null ? "" : request.getRepairResult().trim();
+        if (repairResult.isBlank()) {
+            throw new BizException(4002, "处理结果不能为空");
+        }
+
+        TicketStatusChangeResponse response = changeStatus(ticket, operatorId, TicketStatus.COMPLETED.getValue(), "维修完成: " + repairResult);
+        ticket.setRepairResult(repairResult);
         ticket.setCompletedAt(LocalDateTime.now());
         ticket.setUpdatedAt(LocalDateTime.now());
         repairTicketRepository.save(ticket);
@@ -264,16 +269,16 @@ public class TicketServiceImpl implements TicketService {
         }
 
         String comment = request.getComment() == null ? null : request.getComment().trim();
-        ticket.setEvaluationScore(request.getScore());
-        ticket.setEvaluationComment(comment == null || comment.isBlank() ? null : comment);
-        ticket.setEvaluatedAt(LocalDateTime.now());
-        repairTicketRepository.save(ticket);
-
         String detail = "用户评价: score=" + request.getScore();
         if (comment != null && !comment.isBlank()) {
             detail = detail + ", comment=" + comment;
         }
-        return changeStatus(ticket, operatorId, TicketStatus.EVALUATED.getValue(), detail);
+        TicketStatusChangeResponse response = changeStatus(ticket, operatorId, TicketStatus.EVALUATED.getValue(), detail);
+        ticket.setEvaluationScore(request.getScore());
+        ticket.setEvaluationComment(comment == null || comment.isBlank() ? null : comment);
+        ticket.setEvaluatedAt(LocalDateTime.now());
+        repairTicketRepository.save(ticket);
+        return response;
     }
 
     @Override
