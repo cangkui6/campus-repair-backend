@@ -8,6 +8,7 @@ import com.graduation.repair.domain.vo.DispatchScoreVO;
 import com.graduation.repair.repository.FaultCategoryRepository;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -15,6 +16,8 @@ import java.util.Locale;
 
 @Component
 public class DispatchScoreEngine {
+
+    private static final int FACTOR_COUNT = 5;
 
     private final FaultCategoryRepository faultCategoryRepository;
     private final DispatchWeightManager dispatchWeightManager;
@@ -27,29 +30,45 @@ public class DispatchScoreEngine {
 
     public List<DispatchScoreVO> rank(RepairTicket ticket, List<MaintenanceWorker> workers) {
         DispatchWeightConfig config = dispatchWeightManager.activeConfig();
-        List<DispatchScoreVO> scores = new ArrayList<>();
+        List<CandidateScore> candidates = new ArrayList<>();
         for (MaintenanceWorker worker : workers) {
             double skill = skillScore(ticket, worker);
             double area = areaScore(ticket, worker);
             double load = loadScore(worker);
             double perf = perfScore(worker);
             double urgency = urgencyScore(ticket, worker, skill, area);
-            double total = round2(100 * (
-                    config.getWeightSkill().doubleValue() * skill
-                            + config.getWeightArea().doubleValue() * area
-                            + config.getWeightLoad().doubleValue() * load
-                            + config.getWeightPerf().doubleValue() * perf
-                            + config.getWeightUrgency().doubleValue() * urgency));
+            candidates.add(new CandidateScore(worker.getId(), new double[]{skill, area, load, perf, urgency}, config.getVersionNo()));
+        }
+
+        double[][] weightedMatrix = weightedNormalizedMatrix(candidates, config);
+        double[] positiveIdeal = new double[FACTOR_COUNT];
+        double[] negativeIdeal = new double[FACTOR_COUNT];
+        for (int j = 0; j < FACTOR_COUNT; j++) {
+            positiveIdeal[j] = Double.NEGATIVE_INFINITY;
+            negativeIdeal[j] = Double.POSITIVE_INFINITY;
+            for (int i = 0; i < candidates.size(); i++) {
+                positiveIdeal[j] = Math.max(positiveIdeal[j], weightedMatrix[i][j]);
+                negativeIdeal[j] = Math.min(negativeIdeal[j], weightedMatrix[i][j]);
+            }
+        }
+
+        List<DispatchScoreVO> scores = new ArrayList<>();
+        for (int i = 0; i < candidates.size(); i++) {
+            CandidateScore candidate = candidates.get(i);
+            double positiveDistance = euclideanDistance(weightedMatrix[i], positiveIdeal);
+            double negativeDistance = euclideanDistance(weightedMatrix[i], negativeIdeal);
+            double closeness = relativeCloseness(positiveDistance, negativeDistance);
+            double[] factors = candidate.factors();
 
             scores.add(DispatchScoreVO.builder()
-                    .workerId(worker.getId())
-                    .scoreSkill(round2(skill * 100))
-                    .scoreArea(round2(area * 100))
-                    .scoreLoad(round2(load * 100))
-                    .scorePerf(round2(perf * 100))
-                    .scoreUrgency(round2(urgency * 100))
-                    .totalScore(total)
-                    .scoreVersion(config.getVersionNo())
+                    .workerId(candidate.workerId())
+                    .scoreSkill(round2(factors[0] * 100))
+                    .scoreArea(round2(factors[1] * 100))
+                    .scoreLoad(round2(factors[2] * 100))
+                    .scorePerf(round2(factors[3] * 100))
+                    .scoreUrgency(round2(factors[4] * 100))
+                    .totalScore(round2(closeness * 100))
+                    .scoreVersion(candidate.scoreVersion())
                     .build());
         }
 
@@ -57,6 +76,74 @@ public class DispatchScoreEngine {
                 .comparing(DispatchScoreVO::getTotalScore).reversed()
                 .thenComparing(DispatchScoreVO::getScoreLoad, Comparator.reverseOrder()));
         return scores;
+    }
+
+    private double[][] weightedNormalizedMatrix(List<CandidateScore> candidates, DispatchWeightConfig config) {
+        double[][] matrix = new double[candidates.size()][FACTOR_COUNT];
+        if (candidates.isEmpty()) {
+            return matrix;
+        }
+        double[] weights = normalizedWeights(config);
+        double[] denominators = new double[FACTOR_COUNT];
+        for (CandidateScore candidate : candidates) {
+            double[] factors = candidate.factors();
+            for (int j = 0; j < FACTOR_COUNT; j++) {
+                denominators[j] += factors[j] * factors[j];
+            }
+        }
+        for (int j = 0; j < FACTOR_COUNT; j++) {
+            denominators[j] = Math.sqrt(denominators[j]);
+        }
+        for (int i = 0; i < candidates.size(); i++) {
+            double[] factors = candidates.get(i).factors();
+            for (int j = 0; j < FACTOR_COUNT; j++) {
+                double normalized = denominators[j] == 0 ? 0 : factors[j] / denominators[j];
+                matrix[i][j] = normalized * weights[j];
+            }
+        }
+        return matrix;
+    }
+
+    private double[] normalizedWeights(DispatchWeightConfig config) {
+        double[] weights = new double[]{
+                positive(config.getWeightSkill()),
+                positive(config.getWeightArea()),
+                positive(config.getWeightLoad()),
+                positive(config.getWeightPerf()),
+                positive(config.getWeightUrgency())
+        };
+        double total = 0;
+        for (double weight : weights) {
+            total += weight;
+        }
+        if (total <= 0) {
+            return new double[]{0.35, 0.20, 0.20, 0.10, 0.15};
+        }
+        for (int i = 0; i < weights.length; i++) {
+            weights[i] = weights[i] / total;
+        }
+        return weights;
+    }
+
+    private double positive(BigDecimal value) {
+        return value == null ? 0.0 : Math.max(0.0, value.doubleValue());
+    }
+
+    private double euclideanDistance(double[] current, double[] target) {
+        double sum = 0;
+        for (int i = 0; i < current.length; i++) {
+            double diff = current[i] - target[i];
+            sum += diff * diff;
+        }
+        return Math.sqrt(sum);
+    }
+
+    private double relativeCloseness(double positiveDistance, double negativeDistance) {
+        double denominator = positiveDistance + negativeDistance;
+        if (denominator == 0) {
+            return 1.0;
+        }
+        return negativeDistance / denominator;
     }
 
     private double skillScore(RepairTicket ticket, MaintenanceWorker worker) {
@@ -148,5 +235,8 @@ public class DispatchScoreEngine {
 
     private double round2(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private record CandidateScore(Long workerId, double[] factors, Integer scoreVersion) {
     }
 }

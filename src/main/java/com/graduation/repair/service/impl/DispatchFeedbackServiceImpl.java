@@ -116,6 +116,20 @@ public class DispatchFeedbackServiceImpl implements DispatchFeedbackService {
     }
 
     @Override
+    @Transactional
+    public DispatchFeedbackOverviewVO resetDefaultWeights(Long operatorId) {
+        DispatchWeightConfig config = dispatchWeightManager.activateNext(
+                0.35,
+                0.20,
+                0.20,
+                0.10,
+                0.15,
+                operatorId == null ? "ADMIN_DEFAULT_RESET" : "ADMIN_DEFAULT_RESET"
+        );
+        return new DispatchFeedbackOverviewVO(toWeightVO(config), null);
+    }
+
+    @Override
     public void onTicketCompleted(Long operatorId, Long ticketId) {
         recalculate(operatorId);
     }

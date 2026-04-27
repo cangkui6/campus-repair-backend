@@ -59,6 +59,37 @@ public class RagClient {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> listKnowledge() {
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+                properties.getBaseUrl() + properties.getKnowledgePath(),
+                Map.class
+        );
+        return response.getBody() == null ? Collections.emptyMap() : response.getBody();
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> addKnowledge(Map<String, Object> request) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                properties.getBaseUrl() + properties.getKnowledgePath(),
+                new HttpEntity<>(request, headers),
+                Map.class
+        );
+        return response.getBody() == null ? Collections.emptyMap() : response.getBody();
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> rebuildKnowledge() {
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                properties.getBaseUrl() + properties.getKnowledgeRebuildPath(),
+                HttpEntity.EMPTY,
+                Map.class
+        );
+        return response.getBody() == null ? Collections.emptyMap() : response.getBody();
+    }
+
     public boolean available() {
         if (!isEnabled()) {
             return false;
@@ -87,3 +118,4 @@ public class RagClient {
         return properties.getTopK();
     }
 }
+

@@ -11,5 +11,7 @@ public interface DispatchFeedbackService {
 
     DispatchFeedbackOverviewVO updateWeights(Long operatorId, DispatchWeightUpdateRequest request);
 
+    DispatchFeedbackOverviewVO resetDefaultWeights(Long operatorId);
+
     void onTicketCompleted(Long operatorId, Long ticketId);
 }

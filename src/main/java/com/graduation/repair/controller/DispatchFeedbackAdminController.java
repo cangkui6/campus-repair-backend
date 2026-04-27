@@ -38,4 +38,10 @@ public class DispatchFeedbackAdminController {
         AuthUser user = SecurityUserContext.currentUser();
         return ApiResponse.success(dispatchFeedbackService.updateWeights(user.getUserId(), request));
     }
+
+    @PostMapping("/weights/default")
+    public ApiResponse<DispatchFeedbackOverviewVO> resetDefaultWeights() {
+        AuthUser user = SecurityUserContext.currentUser();
+        return ApiResponse.success(dispatchFeedbackService.resetDefaultWeights(user.getUserId()));
+    }
 }
